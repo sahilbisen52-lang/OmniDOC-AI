@@ -1,22 +1,17 @@
 # =============================================================================
-# Stage 1: Build
+# Stage 1: Build with Maven
 # =============================================================================
-FROM eclipse-temurin:17-jdk AS builder
+FROM maven:3.9.6-eclipse-temurin-17 AS builder
 
 WORKDIR /app
 
-# Copy Maven wrapper and POM first for layer caching of dependencies
+# Copy pom.xml first for layer caching of dependencies
 COPY pom.xml ./
-COPY .mvn .mvn
-COPY mvnw ./
-RUN chmod +x mvnw
+RUN mvn dependency:go-offline -B || true
 
-# Download dependencies (cached unless pom.xml changes)
-RUN ./mvnw dependency:go-offline -B || true
-
-# Copy source code and build
+# Copy source code and build executable JAR
 COPY src ./src
-RUN ./mvnw clean package -DskipTests -B
+RUN mvn clean package -DskipTests -B
 
 # =============================================================================
 # Stage 2: Runtime
@@ -41,10 +36,6 @@ USER appuser
 
 # Expose the application port
 EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
 
 # JVM tuning for containerised environments
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC"
