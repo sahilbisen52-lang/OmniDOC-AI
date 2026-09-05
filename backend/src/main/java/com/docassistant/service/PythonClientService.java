@@ -12,6 +12,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -99,11 +100,45 @@ public class PythonClientService {
 
                 throw new RuntimeException("Python service returned status " + response.getStatusCode());
 
-            } catch (RestClientException e) {
-                log.error("Failed to call Python service for '{}': {}", filename, e.getMessage());
-                throw new RuntimeException("Python extraction service unavailable: " + e.getMessage(), e);
+            } catch (Exception e) {
+                log.warn("Python extraction service unavailable for '{}' ({}). Falling back to native Java PDFBox extractor.", filename, e.getMessage());
+                return extractTextNative(pdfBytes, filename);
             }
         });
+    }
+
+    /**
+     * Native Java PDFBox text extraction fallback when Python microservice is offline or unreachable.
+     */
+    public PythonExtractionResponse extractTextNative(byte[] pdfBytes, String filename) {
+        try (org.apache.pdfbox.pdmodel.PDDocument pdDoc = org.apache.pdfbox.Loader.loadPDF(pdfBytes)) {
+            org.apache.pdfbox.text.PDFTextStripper stripper = new org.apache.pdfbox.text.PDFTextStripper();
+            String fullText = stripper.getText(pdDoc);
+            int pageCount = pdDoc.getNumberOfPages();
+
+            if (fullText == null || fullText.isBlank()) {
+                fullText = "Document extracted with " + pageCount + " page(s).";
+            }
+
+            // Simple segment chunking (500 chars per chunk)
+            List<String> chunks = new ArrayList<>();
+            int chunkSize = 500;
+            for (int i = 0; i < fullText.length(); i += chunkSize) {
+                chunks.add(fullText.substring(i, Math.min(fullText.length(), i + chunkSize)));
+            }
+
+            PythonExtractionResponse response = new PythonExtractionResponse();
+            response.setText(fullText);
+            response.setPageCount(pageCount);
+            response.setChunks(chunks);
+            response.setMetadata(Map.of("extractor", "pdfbox-native-fallback", "filename", filename));
+
+            log.info("Native PDFBox extraction completed for '{}': {} pages, {} chars", filename, pageCount, fullText.length());
+            return response;
+        } catch (Exception ex) {
+            log.error("Native PDFBox extraction failed for '{}'", filename, ex);
+            throw new RuntimeException("Failed to extract text from PDF: " + ex.getMessage(), ex);
+        }
     }
 
     /**
