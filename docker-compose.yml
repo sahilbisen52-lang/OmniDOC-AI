@@ -1,0 +1,119 @@
+version: '3.9'
+
+services:
+  # ──────────────────────────────────────────────
+  # PostgreSQL Database
+  # ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: docassistant-postgres
+    environment:
+      POSTGRES_DB: docassistant
+      POSTGRES_USER: docassistant
+      POSTGRES_PASSWORD: docassistant_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docassistant"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docassistant-net
+
+  # ──────────────────────────────────────────────
+  # Redis Cache
+  # ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: docassistant-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docassistant-net
+
+  # ──────────────────────────────────────────────
+  # Python FastAPI Microservice
+  # ──────────────────────────────────────────────
+  python-service:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    container_name: docassistant-python
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - docassistant-net
+
+  # ──────────────────────────────────────────────
+  # Java Spring Boot Backend
+  # ──────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: docassistant-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/docassistant
+      SPRING_DATASOURCE_USERNAME: docassistant
+      SPRING_DATASOURCE_PASSWORD: docassistant_secret
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      PYTHON_SERVICE_URL: http://python-service:8000
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      python-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - docassistant-net
+
+  # ──────────────────────────────────────────────
+  # React Frontend
+  # ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: docassistant-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - docassistant-net
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  docassistant-net:
+    driver: bridge

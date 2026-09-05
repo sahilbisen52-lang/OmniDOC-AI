@@ -1,0 +1,54 @@
+# ──────────────────────────────────────
+# Java / Maven
+# ──────────────────────────────────────
+backend/target/
+backend/*.jar
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+*.class
+*.log
+
+# ──────────────────────────────────────
+# Python
+# ──────────────────────────────────────
+python-service/__pycache__/
+python-service/**/__pycache__/
+python-service/*.pyc
+python-service/.venv/
+python-service/venv/
+python-service/.env
+
+# ──────────────────────────────────────
+# React / Node
+# ──────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# ──────────────────────────────────────
+# IDE
+# ──────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+.DS_Store
+
+# ──────────────────────────────────────
+# Docker
+# ──────────────────────────────────────
+docker-compose.override.yml
+
+# ──────────────────────────────────────
+# Environment & Data
+# ──────────────────────────────────────
+.env
+*.env.local
+*.log
+backend/data/
+data/
+*.mv.db
+*.trace.db
