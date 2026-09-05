@@ -1,8 +1,12 @@
 import axios from 'axios';
 import type { Document, SummaryRequest, SummaryResponse, ChatMessage } from '../types';
 
+const apiBaseUrl = import.meta.env.VITE_API_URL 
+  ? (import.meta.env.VITE_API_URL.endsWith('/api') ? import.meta.env.VITE_API_URL : `${import.meta.env.VITE_API_URL}/api`)
+  : '/api';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
